@@ -34,7 +34,7 @@ def string_files_together(source_folder,
 	:param start_i: index of file to start at , zero based
 	:param end_i: index of file to end at, pythoneseque.
 	:param height: height of video (pixels)
-	:return: process (which should be done, kinda useless)
+	:return: process return value
 	"""
 
 	if output_folder is None or len(output_folder) == 0:
@@ -65,12 +65,28 @@ def string_files_together(source_folder,
 		concat_sources += '[Scaled{:}] [{:}:a:0] '.format(i,i)
 	input_s = ''.join(inputs)
 	filter_s = filter_sections + concat_sources + ' concat=n={:}:v=1:a=1 [v] [a]\"'.format(N)
-	# this was used before i figure out escaping for subprocess.
+	# this was used before i figured out escaping for subprocess.
 	#return executable + input_s + ' -filter_complex ' + filter_s +  ' -map "[v]" -map "[a]"' + ' "' + output_filename + '"'
 	args = [executable, ] + input_list + ['-filter_complex', filter_s.strip('"').lstrip('"'),] +  ['-map', '[v]', '-map', '[a]'] + [output_filename,]
 	print 'args=\n', args
-	p = subprocess.Popen(args)
-	return p
+	p = subprocess.Popen(args, stdin = subprocess.PIPE, stdout = subprocess.PIPE)
+	stop_requests = 0
+	start_time = time.time()
+	while True:
+		try:
+			if p.poll() is not None:
+				break
+			time.sleep(1)
+		except KeyboardInterrupt:
+			print 'trying to stop'
+			stop_requests += 1
+			if stop_requests < 2:
+				print 'Trying to stop ffmpeg nicely - sending q'
+				p.communicate(input = 'q\n')
+			else:
+				print 'Too many requests - trying to terminate process'
+				p.terminate()
+	print 'Total processing time {:0.1f} seconds'.format(time.time() - start_time)
 
 if __name__ == '__main__':
 	import argparse
